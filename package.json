@@ -1,0 +1,44 @@
+{
+  "name": "nodejs-event-loop",
+  "version": "1.0.0",
+  "description": "Test node event loop",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "scripts": {
+    "only-test": "mocha \"src/**/*.test.js\"",
+    "test": "nyc --reporter=lcov --reporter=text mocha \"src/**/*.test.js\"",
+    "coveralls": "nyc report --reporter=text-lcov | coveralls"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tlbdk/node-event-loop.git"
+  },
+  "keywords": [
+    "http"
+  ],
+  "author": "Connected Cars <oss@connectedcars.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/connectedcars/node-event-loop/issues"
+  },
+  "homepage": "https://github.com/connectedcars/node-event-loopt#readme",
+  "devDependencies": {
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^12.0.10",
+    "babel-eslint": "^10.0.2",
+    "coveralls": "^3.0.4",
+    "eslint": "^6.0.1",
+    "eslint-config-prettier": "^6.0.0",
+    "eslint-plugin-node": "^9.1.0",
+    "eslint-plugin-prettier": "^3.1.0",
+    "mocha": "^6.1.4",
+    "nyc": "^14.1.1",
+    "prettier": "^1.18.2",
+    "unexpected": "^11.6.1"
+  },
+  "dependencies": {
+    "event-loop-stats": "^1.2.0"
+  }
+}
