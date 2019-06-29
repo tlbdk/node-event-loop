@@ -1,44 +1,92 @@
 'use strict'
-let eventLoopStats = require('event-loop-stats')
 const crypto = require('crypto')
+const async_hooks = require('async_hooks')
 
 setInterval(() => {
-  const key = crypto.pbkdf2Sync('secret', 'salt', 100000, 64, 'sha512')
-  //console.log('hello')
+  let before = process.hrtime()
+  const key = crypto.pbkdf2Sync('secret', 'salt', 2000000, 64, 'sha512')
+  console.log(`crypto: ${process.hrtime(before)}`)
 }, 3000)
 
-let min = [Number.MAX_VALUE, Number.MAX_VALUE]
-let max = [0, 0]
-let avg = [0, 0]
-let interval = 1000
-let lastStartTime = process.hrtime()
-setInterval(() => {
-  let now = process.hrtime()
-  let diff = diffHrTime(lastStartTime, now, interval * 1000000)
 
-  lastStartTime = now
-  if (diff[0] < min[0] || (diff[0] == min[0] && diff[1] < min[1])) {
-    min = diff
+class EventLoopStatistics {
+  constructor(warningLatency) {
+    this.warningLatency = warningLatency
+    this.scheduled = false
+    this.lastStartTime = process.hrtime()
+    this.reset()
+    /* async_hooks.createHook({
+      init(asyncId, type, triggerAsyncId) {
+        schedule()
+      },
+      before(asyncId) {
+        schedule()
+      },
+      after(asyncId) {
+        schedule()
+      },
+      destroy(asyncId) {
+        schedule()
+      },
+    }).enable(); */
+    setInterval(this.schedule.bind(this), getMsTime(warningLatency))
   }
-  if (diff[0] > max[0] || (diff[0] == max[0] && diff[1] > max[1])) {
-    max = diff
+
+  reset() {
+    this.maxLatency = [0, 0]
+    this.minLatency = [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
   }
-  console.info(
-    'Latency: last:%ds %dms, min:%ds %dms, max:%ds %dms',
-    diff[0],
-    diff[1] / 1000000,
-    min[0],
-    min[1] / 1000000,
-    max[0],
-    max[1] / 1000000
-  )
-}, interval)
 
-/*setInterval(() => {
-  console.log(doingStuff)
-}, 1000)*/
+  schedule() {
+    if(!this.scheduled) {
+      this.scheduled = true
+      setImmediate(this.calculate.bind(this))
+    }
+  }
 
-function diffHrTime(start, stop, intervalNs = 0) {
+  calculate() {
+    this.scheduled = false
+    let now = process.hrtime()
+    let diff = diffHrTime(this.lastStartTime, now)
+    this.lastStartTime = now
+
+    // Minus wait latency
+    diff[0] -= this.warningLatency[0]
+    diff[1] -= this.warningLatency[1]
+    if(diff[0] > 0 && diff[1] < 0) {
+      diff[0] -= 1
+      diff[1] += 1000000000
+    }
+
+    let min = this.minLatency
+    if (diff[0] < min[0] || (diff[0] == min[0] && diff[1] < min[1])) {
+      this.minLatency = diff
+    }
+    let max = this.maxLatency
+    if (diff[0] > max[0] || (diff[0] == max[0] && diff[1] > max[1])) {
+      this.maxLatency = diff
+    }
+
+    if (diff[0] >= this.warningLatency[0] && diff[1] > this.warningLatency[1]) {
+      console.info(
+        `Latency: limit:${getMsTime(this.warningLatency)}, last:${getMsTime(diff)}, min:${getMsTime(this.minLatency)}, max:${getMsTime(this.maxLatency)}`,
+      )
+      this.reset()
+    }
+    //this.schedule()
+  }
+}
+
+let eventLoopStatistics = new EventLoopStatistics([0, 100000000])
+
+//fs.writeFileSync('log.out', `${util.format(...args)}\n`, { flag: 'a' });
+
+
+function getMsTime(time) {
+  return Math.floor((time[0] * 1000) + (time[1] / 1000000))
+}
+
+function diffHrTime(start, stop) {
   // desctructure/capture secs and nanosecs
   var startS = stop[0],
     startNs = stop[1],
@@ -46,24 +94,11 @@ function diffHrTime(start, stop, intervalNs = 0) {
     stopNs = start[1],
     ns = startNs - stopNs, // nanosecs delta, can overflow (will be negative)
     s = startS - stopS // secs delta
-  let nsSave = ns
-  let sSave = s
+
   if (ns < 0) {
     // has overflowed
     s -= 1 // cut a second
     ns += 1e9 // add a billion nanosec (to neg number)
-  }
-  ns -= intervalNs
-  if (ns < 0) {
-    if (s > 0) {
-      s -= 1 // cut a second
-    }
-    ns += 1e9 // add a billion nanosec (to neg number)
-  }
-
-  if (s < 0 || ns < 0) {
-    console.log(sSave)
-    console.log(nsSave)
   }
 
   return [s, ns]
